@@ -1,10 +1,12 @@
+import { FilterButton } from "@/src/FilterButton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 export default function Index() {
   const [tarefas, setTarefas] = useState<{ id: number; titulo: string; concluido: boolean }[]>([]);
   const [novaTarefa, setNovaTarefa] = useState("");
+  const [filtro, setFiltro] = useState<"todas" | "pendentes" | "concluidas">("todas");
 
   useEffect(() => {
     const carregarTarefas = async () => {
@@ -38,6 +40,21 @@ export default function Index() {
     );
   }
 
+  const listaFiltrada = useMemo(() => {
+    switch (filtro) {
+      case "pendentes":
+        return tarefas.filter((tarefa) => !tarefa.concluido);
+      case "concluidas":
+        return tarefas.filter((tarefa) => tarefa.concluido);
+      default:
+        return tarefas;
+    }
+  }, [tarefas, filtro]);
+
+  const todasCount = tarefas.length;
+  const pendentesCount = useMemo(() => tarefas.filter((t) => !t.concluido).length, [tarefas]);
+  const concluidasCount = useMemo(() => tarefas.filter((t) => t.concluido).length, [tarefas]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Minhas tarefas</Text>
@@ -51,8 +68,22 @@ export default function Index() {
         <Button title="Adicionar" onPress={adicionarTarefa} />
       </View>
 
+      <View style={styles.filters}>
+        <FilterButton label={`Todas (${todasCount})`} active={filtro === "todas"} onPress={() => setFiltro("todas")} />
+        <FilterButton
+          label={`Pendentes (${pendentesCount})`}
+          active={filtro === "pendentes"}
+          onPress={() => setFiltro("pendentes")}
+        />
+        <FilterButton
+          label={`Concluidas (${concluidasCount})`}
+          active={filtro === "concluidas"}
+          onPress={() => setFiltro("concluidas")}
+        />
+      </View>
+
       <FlatList
-        data={tarefas}
+        data={listaFiltrada}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <Pressable style={styles.itemRow} onPress={() => toggleTarefa(item.id)}>
@@ -116,5 +147,10 @@ const styles = StyleSheet.create({
   itemTextConcluido: {
     textDecorationLine: "line-through",
     color: "#777",
+  },
+  filters: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
   },
 });
