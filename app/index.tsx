@@ -1,7 +1,9 @@
 import { FilterButton } from "@/src/FilterButton";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SQLite from "expo-sqlite";
 import { useEffect, useMemo, useState } from "react";
 import { Button, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+
+const db = SQLite.openDatabaseSync("tarefas.db");
 
 export default function Index() {
   const [tarefas, setTarefas] = useState<{ id: number; titulo: string; concluido: boolean }[]>([]);
@@ -9,35 +11,42 @@ export default function Index() {
   const [filtro, setFiltro] = useState<"todas" | "pendentes" | "concluidas">("todas");
 
   useEffect(() => {
-    const carregarTarefas = async () => {
-      const tarefasSalvas = await AsyncStorage.getItem("tarefas");
-      if (tarefasSalvas) {
-        setTarefas(JSON.parse(tarefasSalvas));
-      }
-    };
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS tarefas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo TEXT NOT NULL,
+      concluido INTEGER NOT NULL DEFAULT 0
+      );
+    `);
     carregarTarefas();
   }, []);
 
-  useEffect(() => {
-    AsyncStorage.setItem("tarefas", JSON.stringify(tarefas));
-  }, [tarefas]);
+  function carregarTarefas() {
+    const resultado = db.getAllSync<{ id: number; titulo: string; concluido: number }>("SELECT * FROM tarefas");
+    setTarefas(
+      resultado.map((tarefa) => ({
+        id: tarefa.id,
+        titulo: tarefa.titulo,
+        concluido: tarefa.concluido === 1,
+      })),
+    );
+  }
 
   function adicionarTarefa() {
-    setTarefas((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        titulo: novaTarefa,
-        concluido: false,
-      },
-    ]);
+    db.runSync("INSERT INTO tarefas (titulo, concluido) VALUES (?, ?)", novaTarefa, 0);
     setNovaTarefa("");
+    carregarTarefas();
   }
 
   function toggleTarefa(id: number) {
-    setTarefas((prev) =>
-      prev.map((tarefa) => (tarefa.id === id ? { ...tarefa, concluido: !tarefa.concluido } : tarefa)),
-    );
+    const tarefa = tarefas.find((item) => (item.id = id));
+    db.runSync("UPDATE tarefas SET concluido = ? WHERE id = ?", tarefa?.concluido ? 0 : 1, id);
+    carregarTarefas();
+  }
+
+  function deletarTarefa(id: number) {
+    db.runSync("DELETE FROM tarefas WHERE id = ?", id);
+    carregarTarefas();
   }
 
   const listaFiltrada = useMemo(() => {
@@ -86,10 +95,13 @@ export default function Index() {
         data={listaFiltrada}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <Pressable style={styles.itemRow} onPress={() => toggleTarefa(item.id)}>
-            <View style={[styles.checkbox, item.concluido && styles.checkboxConcluido]} />
-            <Text style={[styles.itemText, item.concluido && styles.itemTextConcluido]}>{item.titulo}</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", padding: 12 }}>
+            <Pressable style={styles.itemRow} onPress={() => toggleTarefa(item.id)}>
+              <View style={[styles.checkbox, item.concluido && styles.checkboxConcluido]} />
+              <Text style={[styles.itemText, item.concluido && styles.itemTextConcluido]}>{item.titulo}</Text>
+            </Pressable>
+            <Button title="Delete" onPress={() => deletarTarefa(item.id)} />
+          </View>
         )}
       />
     </View>
