@@ -65,7 +65,7 @@ export default function Index() {
           value={novaTarefa}
           onChangeText={setNovaTarefa}
         />
-        <Button title="Adicionar" onPress={adicionarTarefa} />
+        <Button title="Adicionar0" onPress={adicionarTarefa} />
       </View>
 
       <View style={styles.filters}>
